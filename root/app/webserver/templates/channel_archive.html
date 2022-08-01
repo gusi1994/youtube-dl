@@ -1,0 +1,61 @@
+{% extends "layout.html" %} {% block styles %}
+<style>
+    .grid-container {
+        /* display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between; */
+    }
+    
+    .grid-item {
+        /* --columns: 3;
+        flex: 1;
+        width: calc((100 / var(--columns)) * 1%);
+        padding: 10px;
+        display: flex;
+        flex-direction: column; */
+    }
+    
+    .grid-item a {
+        display: block;
+    }
+    
+    .grid-item img {
+        display: block;
+        max-width: 100%;
+    }
+    
+    .grid-item-footer {
+        display: block;
+        border: 1px solid grey;
+        border-top: none;
+        padding: 5px 10px;
+        font-size: 20px;
+        width: 100%;
+    }
+</style>
+{% endblock %} {% block content %}
+<div class="ui container">
+
+    <div class="ui stackable grid">
+        {% for item in items %}
+        <div class="grid-item four wide column">
+            {% if type == "archive" %}
+            <a href="/archive/{{item}}">
+                <img src="https://picsum.photos/530/350">
+                <span class="grid-item-footer">{{ item }}</span>
+            </a>
+            {% elif type == "channel" %}
+            <a href="{{request.url}}/">
+                <img src="{{item.thumbnail}}">
+                <span class="grid-item-footer">
+                    {{ item.filepath }}<br/>
+                    {{ item.thumbnail }}
+                </span>
+            </a>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+
+</div>
+{% endblock %}

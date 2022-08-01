@@ -1,9 +1,13 @@
-import subprocess, aiofiles, re
+import subprocess, aiofiles, re, os, os.path, ffmpeg
 from fastapi import FastAPI, Request, Form
+from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse, FileResponse
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
+from os import listdir
+from os.path import join, isdir, isfile
 
+parent_dir_path = os.path.dirname(os.path.realpath(__file__))
 
 def execute(command):
     process = subprocess.Popen(command, shell=True, universal_newlines=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
@@ -41,8 +45,55 @@ youtubedl_binary = 'yt-dlp'
 
 @webserver.get('/')
 async def dashboard(request: Request):
-    return templates.TemplateResponse('dashboard.html', {'request': request})
+    return templates.TemplateResponse('dashboard.html', {'request': request })
 
+@webserver.get('/archive')
+async def archive(request: Request ):
+    return templates.TemplateResponse('channel_archive.html', {'request': request, 'items': list_downloads(), 'type': 'archive'})
+
+@webserver.get('/archive/{channel}')
+async def channel(request: Request, channel):
+    files = list_downloads(channel, False)
+    items = get_video_data(files, channel)
+    return templates.TemplateResponse('channel_archive.html', {'request': request, 'items': items, 'type': 'channel'})
+
+# @webserver.get('/archive/{channel}/{video_id}')
+# async def channel(request: Request, channel, video_id):
+#     return templates.TemplateResponse('channel_video_detail.html', {'request': request, 'items': list_downloads(channel, False), 'type': 'detail'})
+
+def get_video_data(filenames, channel):
+    output = list()
+    for file in filenames:
+        fullfilepath = "/downloads/" + channel + "/" + file
+        outfilepath = "/downloads/" + channel + "/" + file + "_thumbnail.jpg"
+        metadata = ffmpeg.probe(fullfilepath)
+        format = metadata['format']
+        filepath = format['filename']
+        time = float(metadata['streams'][0]['duration'])
+        width = float(metadata['streams'][0]['width'])
+        try:
+            (
+                ffmpeg
+                .input(fullfilepath, ss=time)
+                .filter('scale', width, -1)
+                .output(outfilepath, vframes=1)
+                .overwrite_output()
+                .run(capture_stdout=True, capture_stderr=True)
+            )
+        except ffmpeg.Error as e:
+            print(e.stderr.decode(), file=sys.stderr)
+        output.append({
+            'filepath': filepath,
+            'thumbnail': outfilepath
+        })
+    return output
+
+def list_downloads(path = "", onlyDir = True):
+    if path == "":
+        downloadPath = '/downloads'
+        return [f for f in listdir(downloadPath) if (onlyDir and isdir(join(downloadPath, f))) or (not onlyDir and isfile(join(downloadPath, f)))]
+    else:
+        return listdir('/downloads/' + path)
 
 @webserver.post('/download')
 async def download_url(url: str = Form(...)):
@@ -110,6 +161,8 @@ async def save_archive(archive_new: list = Form(...)):
 @webserver.get('/favicon.ico')
 async def favicon():
     return FileResponse('/app/webserver/static/favicon.png')
+
+webserver.mount("/downloads", StaticFiles(directory="/downloads"), name="downloads")
 
 
 with open('/config.default/format') as default_format:
