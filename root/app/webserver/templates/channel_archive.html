@@ -5,7 +5,7 @@
         flex-wrap: wrap;
         justify-content: space-between; */
     }
-    
+
     .grid-item {
         /* --columns: 3;
         flex: 1;
@@ -14,16 +14,39 @@
         display: flex;
         flex-direction: column; */
     }
-    
+
+    #video-modal {
+        display: none;
+        max-width: 80vw;
+        padding: 20px;
+        box-shadow: 0 0 20px 0px #dddddd;
+        background-color: white;
+    }
+
+    #video {
+        display: block;
+        position: relative;
+        width: 100%;
+    }
+
+    .display {
+        display: block !important;
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        -webkit-transform: translate(-50%, -50%);
+        transform: translate(-50%, -50%);
+    }
+
     .grid-item a {
         display: block;
     }
-    
+
     .grid-item img {
         display: block;
         max-width: 100%;
     }
-    
+
     .grid-item-footer {
         display: block;
         border: 1px solid grey;
@@ -33,6 +56,9 @@
         width: 100%;
     }
 </style>
+{% if type == 'channel' %}
+<script src="https://code.jquery.com/jquery-3.6.1.min.js"></script>
+{% endif %}
 {% endblock %} {% block content %}
 <div class="ui container">
 
@@ -45,17 +71,79 @@
                 <span class="grid-item-footer">{{ item }}</span>
             </a>
             {% elif type == "channel" %}
-            <a href="{{request.url}}/">
+            <a class="video-item" data-videourl="{{item.video_url}}" href="{{request.url}}/">
                 <img src="{{item.thumbnail}}">
                 <span class="grid-item-footer">
-                        {{ item.filepath }}<br/>
-                        {{ item.thumbnail }}
-                    </span>
+                    {{ item.video_title }}
+                </span>
             </a>
+            <script>
+                jQuery(".video-item").on('click', (e) => {
+                    e.preventDefault();
+                    var modal = jQuery("#video-modal");
+                    var video = modal.find("video");
+                    if (modal.hasClass("display")) {
+                        isOpened = false;
+                        modal.removeClass("display");
+                        stopVideo();
+                    } else {
+                        modal.addClass("display");
+                        isOpened = true;
+                        changeVideo(jQuery(e.target).parent('a.video-item').data('videourl'));
+                    }
+                });
+
+                function changeVideo(src) {
+                    let video = jQuery('#video');
+                    let source = jQuery('#video source');
+                    video.get(0).pause();
+                    console.log(src);
+                    source.attr('src', src);
+                    video.get(0).load();
+                    video.get(0).play();
+                }
+
+                function stopVideo() {
+                    let video = jQuery('#video');
+                    video.get(0).stop();
+                }
+
+                // $(document).on('click', (e) => {
+
+                //     console.log("Modal displayed", $('#video-modal').hasClass("display"));
+                //     console.log("Near modal", ($(e.target).closest("#video-modal").length > 0));
+                //     console.log(e.target);
+                //     console.log($('#video-modal').hasClass("display") && ($(e.target).closest("#video-modal").length > 0));
+                //     if (
+                //         $('#video-modal').hasClass("display") && !($(e.target).closest("#video-modal").length > 0)
+                //     ) {
+                //         $("#video-modal").removeClass("display");
+                //     }
+                // });
+                jQuery('.close-modal').on('click', (e) => {
+                    e.preventDefault();
+                    console.log("Close fucking modal");
+                    var modal = jQuery("#video-modal");
+                    if (modal.hasClass("display")) {
+                        modal.removeClass("display");
+                    } else {
+                        modal.addClass("display");
+                    }
+                });
+            </script>
             {% endif %}
         </div>
         {% endfor %}
     </div>
+
+    {% if type == 'channel' %}
+    <div id="video-modal">
+        <a class="close-modal" href="">close</a>
+        <video controls id="video" type="video/mp4">
+            <source />
+        </video>
+    </div>
+    {% endif %}
 
 </div>
 {% endblock %}

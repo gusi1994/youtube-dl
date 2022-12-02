@@ -1,4 +1,4 @@
-import subprocess, aiofiles, re, os, os.path, ffmpeg
+import subprocess, aiofiles, re, os, os.path, ffmpeg, sys, base64
 from fastapi import FastAPI, Request, Form
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse, FileResponse
@@ -49,17 +49,27 @@ async def dashboard(request: Request):
 
 @webserver.get('/archive')
 async def archive(request: Request ):
-    return templates.TemplateResponse('channel_archive.html', {'request': request, 'items': list_downloads(), 'type': 'archive'})
+    # Get a list of all available channels
+    channels = list_folder_content()
+    return templates.TemplateResponse('channel_archive.html', {'request': request, 'items': channels, 'type': 'archive'})
 
 @webserver.get('/archive/{channel}')
 async def channel(request: Request, channel):
-    files = list_downloads(channel, False)
+    # Get all a list of all files
+    files = list_folder_content(channel, False)
     items = get_video_data(files, channel)
     return templates.TemplateResponse('channel_archive.html', {'request': request, 'items': items, 'type': 'channel'})
 
 # @webserver.get('/archive/{channel}/{video_id}')
 # async def channel(request: Request, channel, video_id):
-#     return templates.TemplateResponse('channel_video_detail.html', {'request': request, 'items': list_downloads(channel, False), 'type': 'detail'})
+#     return templates.TemplateResponse('channel_video_detail.html', {'request': request, 'items': list_folder_content(channel, False), 'type': 'detail'})
+
+
+def read_file(file_name):
+    binary_fc = open(file_name, 'rb').read()
+    base64_utf8_str = base64.b64encode(binary_fc).decode('utf-8')
+    ext = file_name.split('.')[-1]
+    return f'data:image/{ext};base64,{base64_utf8_str}'
 
 def get_video_data(filenames, channel):
     output = list()
@@ -67,9 +77,9 @@ def get_video_data(filenames, channel):
         fullfilepath = "/downloads/" + channel + "/" + file
         outfilepath = "/downloads/" + channel + "/" + file + "_thumbnail.jpg"
         metadata = ffmpeg.probe(fullfilepath)
-        format = metadata['format']
-        filepath = format['filename']
-        time = float(metadata['streams'][0]['duration'])
+        filepath = metadata['format']['filename']
+        video_name = filepath.split('/')[-1].split('.')[0]
+        time = float(metadata['streams'][0]['duration']) // 2
         width = float(metadata['streams'][0]['width'])
         try:
             (
@@ -77,23 +87,26 @@ def get_video_data(filenames, channel):
                 .input(fullfilepath, ss=time)
                 .filter('scale', width, -1)
                 .output(outfilepath, vframes=1)
-                .overwrite_output()
                 .run(capture_stdout=True, capture_stderr=True)
             )
         except ffmpeg.Error as e:
             print(e.stderr.decode(), file=sys.stderr)
+        
         output.append({
             'filepath': filepath,
-            'thumbnail': outfilepath
+            'thumbnail': outfilepath,
+            'video_title': video_name,
+            'video_url': fullfilepath
         })
     return output
 
-def list_downloads(path = "", onlyDir = True):
+def list_folder_content(path = "", onlyDir = True):
     if path == "":
         downloadPath = '/downloads'
         return [f for f in listdir(downloadPath) if (onlyDir and isdir(join(downloadPath, f))) or (not onlyDir and isfile(join(downloadPath, f)))]
     else:
-        return listdir('/downloads/' + path)
+        list = listdir('/downloads/' + path)
+        return [ file for file in list if file.endswith('.mp4')]
 
 @webserver.post('/download')
 async def download_url(url: str = Form(...)):
